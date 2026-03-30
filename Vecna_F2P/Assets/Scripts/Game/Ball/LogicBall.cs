@@ -7,6 +7,8 @@ public class LogicBall : NetworkBehaviour
     public LogicBall instance;
     [Header("Settings GD")]
     [SerializeField] public float moveSpeed = 15f;
+    [SerializeField, Min(0.01f)] private float baseMoveSpeed = 15f;
+    [SerializeField, Min(0.01f)] private float maxMoveSpeed = 30f;
     [SerializeField] private int _nBounceMax = 3;
     [SerializeField] private LayerMask _collisionLayer;
     [SerializeField] private int _nBounceTriggerNewTrajectory = 2;
@@ -111,7 +113,10 @@ public class LogicBall : NetworkBehaviour
         ClearShieldAttachmentState();
 
         Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
-        moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
+        float clampedMultiplier = Mathf.Max(1.05f, speedMultiplier);
+        float speedReference = Mathf.Max(moveSpeed, Mathf.Max(0.01f, baseMoveSpeed));
+        float cappedMaxSpeed = Mathf.Max(speedReference, Mathf.Max(0.01f, maxMoveSpeed));
+        moveSpeed = Mathf.Clamp(speedReference * clampedMultiplier, Mathf.Max(0.01f, baseMoveSpeed), cappedMaxSpeed);
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, releaseDirection);

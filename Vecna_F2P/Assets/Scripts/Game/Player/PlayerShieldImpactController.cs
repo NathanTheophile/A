@@ -23,8 +23,8 @@ public class PlayerShieldImpactController : NetworkBehaviour
     [SerializeField, Min(0f)] private float _knockbackDistance = 0.35f;
     [SerializeField, Min(0.01f)] private float _knockbackDuration = 0.12f;
 
-    [Header("Release")]
-    [SerializeField, Min(0.01f)] private float _releaseSpeed = 1f;
+    [Header("Release (must speed up the ball compared to impact)")]
+    [SerializeField, Min(1.05f)] private float _releaseSpeedMultiplier = 1.2f;
     [SerializeField, Range(0f, 1f)] private float _forwardInfluence = 0.35f;
     [SerializeField, Range(0f, 89f)] private float _maxDeflectAngle = 60f;
 
@@ -144,7 +144,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         if (_lockedBall != null)
         {
             _lastReleaseDirection = ComputeReleaseDirection();
-            _lockedBall.ReleaseFromShield(_lastReleaseDirection, _releaseSpeed);
+            _lockedBall.ReleaseFromShield(_lastReleaseDirection, _releaseSpeedMultiplier);
         }
 
         _lockedBall = null;
