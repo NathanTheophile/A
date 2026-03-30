@@ -14,6 +14,10 @@ public class LogicBall : NetworkBehaviour
     [Header("Settings Utility")]
     private SyncVar<Vector3[]> _trajectory = new(null);
     private SyncVar<float> _duration = new(0f);
+
+    // Shield lock state (minimal impact on existing LogicBall flow)
+    private bool _isAttachedToShield = false;
+
     // Trajectory utility 
     private double _startTime = 0f;
     private float _totalPathDistance = 0f;
@@ -52,7 +56,10 @@ public class LogicBall : NetworkBehaviour
     }
     private void Update()
     {
-        if (_isRun && _trajectory != null && _trajectory.value.Length > 0) 
+        if (_isAttachedToShield)
+            return;
+
+        if (_isRun && _trajectory != null && _trajectory.value.Length > 0)
             FlowTrajectory();
     }
 
@@ -62,7 +69,31 @@ public class LogicBall : NetworkBehaviour
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, transform.forward);
     }
- 
+
+    // Minimal APIs used by shield code without changing existing trajectory internals.
+    public void BeginShieldAttach(int playerId, Transform anchorTransform, float duration)
+    {
+        if (!isServer)
+            return;
+
+        _isAttachedToShield = true;
+        _isRun = false;
+    }
+
+    public void ReleaseFromShield(Vector3 direction, float speedMultiplier)
+    {
+        if (!isServer)
+            return;
+
+        _isAttachedToShield = false;
+
+        Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
+        moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
+
+        _hasRequestedNextTrajectory = true;
+        RequestNewTrajectoryRpc(transform.position, releaseDirection);
+    }
+
     private void FlowTrajectory()
     {
         float ratio = GetLocalTimeRatio();
@@ -160,7 +191,7 @@ public class LogicBall : NetworkBehaviour
 
         SetupLocalMove(customPath, dist);
     }
-    
+
     public void SetCustomTrajectory(Vector3[] customPath)
     {
         if (isServer)
@@ -189,7 +220,7 @@ public class LogicBall : NetworkBehaviour
         _totalPathDistance = totalDist;
         _startTime = GetTime();
         _currentIndex = 0;
-         _isRun = true;
+        _isRun = true;
         _hasRequestedNextTrajectory = false;
     }
 

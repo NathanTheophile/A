@@ -78,6 +78,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
 
         Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : hitPoint;
         _lockedBall.transform.position = lockPosition;
+        _lockedBall.BeginShieldAttach(_player != null ? _player.GetInstanceID() : GetInstanceID(), _ballLockPoint, _lockDuration);
 
         if (_player != null)
         {
@@ -136,10 +137,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
     private void ReleaseBall()
     {
         if (_lockedBall != null)
-        {
-            Vector3 releasePos = _lockedBall.transform.position;
-            _lockedBall.RequestNewTrajectoryRpc(releasePos, _releaseDirection);
-        }
+            _lockedBall.ReleaseFromShield(_releaseDirection, 1f);
 
         _lockedBall = null;
         _currentState = ImpactState.Idle;
