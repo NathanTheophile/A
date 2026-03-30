@@ -23,11 +23,22 @@ public class PlayerShieldImpactController : NetworkBehaviour
     [SerializeField, Min(0f)] private float _knockbackDistance = 0.35f;
     [SerializeField, Min(0.01f)] private float _knockbackDuration = 0.12f;
 
+    [Header("Release")]
+    [SerializeField, Min(0.01f)] private float _releaseSpeed = 1f;
+    [SerializeField, Range(0f, 1f)] private float _forwardInfluence = 0.35f;
+    [SerializeField, Range(0f, 89f)] private float _maxDeflectAngle = 60f;
+
+    [Header("Debug")]
+    [SerializeField] private bool _drawDebugVectors = true;
+    [SerializeField, Min(0.1f)] private float _debugVectorSize = 1.25f;
+
     private readonly Dictionary<int, float> _lastImpactTimeByBallId = new();
 
     private ImpactState _currentState = ImpactState.Idle;
     private LogicBall _lockedBall;
-    private Vector3 _releaseDirection;
+    private Vector3 _incomingDirection;
+    private Vector3 _lastHitNormal;
+    private Vector3 _lastReleaseDirection;
     private float _releaseAtTime;
 
     private Vector3 _knockbackStart;
@@ -48,7 +59,8 @@ public class PlayerShieldImpactController : NetworkBehaviour
         if (incoming.sqrMagnitude < 0.0001f)
             incoming = ball.transform.forward;
 
-        _releaseDirection = Vector3.Reflect(incoming.normalized, hitNormal.normalized);
+        _incomingDirection = incoming.normalized;
+        _lastHitNormal = hitNormal.sqrMagnitude < 0.0001f ? transform.forward : hitNormal.normalized;
 
         BeginLock(ball, hitPoint);
         return true;
@@ -84,7 +96,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         {
             _knockbackStart = _player.transform.position;
 
-            Vector3 planarRelease = _releaseDirection;
+            Vector3 planarRelease = Vector3.Reflect(_incomingDirection, _lastHitNormal);
             planarRelease.y = 0f;
             if (planarRelease.sqrMagnitude < 0.0001f)
                 planarRelease = -_player.transform.forward;
@@ -137,9 +149,48 @@ public class PlayerShieldImpactController : NetworkBehaviour
     private void ReleaseBall()
     {
         if (_lockedBall != null)
-            _lockedBall.ReleaseFromShield(_releaseDirection, 1f);
+        {
+            _lastReleaseDirection = ComputeReleaseDirection();
+            _lockedBall.ReleaseFromShield(_lastReleaseDirection, _releaseSpeed);
+        }
 
         _lockedBall = null;
         _currentState = ImpactState.Idle;
+    }
+
+    private Vector3 ComputeReleaseDirection()
+    {
+        Vector3 shieldNormal = Vector3.ProjectOnPlane(
+            _lastHitNormal.sqrMagnitude < 0.0001f ? transform.forward : _lastHitNormal,
+            Vector3.up).normalized;
+        Vector3 playerForward = Vector3.ProjectOnPlane(
+            _player != null ? _player.transform.forward : transform.forward,
+            Vector3.up).normalized;
+
+        if (shieldNormal.sqrMagnitude < 0.0001f) shieldNormal = transform.forward;
+        if (playerForward.sqrMagnitude < 0.0001f) playerForward = shieldNormal;
+
+        Vector3 blended = Vector3.Slerp(shieldNormal, playerForward, _forwardInfluence).normalized;
+        return Vector3.RotateTowards(playerForward, blended, Mathf.Deg2Rad * _maxDeflectAngle, 0f).normalized;
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        if (!_drawDebugVectors)
+            return;
+
+        Vector3 debugOrigin = _ballLockPoint != null ? _ballLockPoint.position : transform.position;
+
+        if (_incomingDirection.sqrMagnitude > 0.0001f)
+        {
+            Gizmos.color = Color.red;
+            Gizmos.DrawLine(debugOrigin, debugOrigin + _incomingDirection.normalized * _debugVectorSize);
+        }
+
+        if (_lastReleaseDirection.sqrMagnitude > 0.0001f)
+        {
+            Gizmos.color = Color.green;
+            Gizmos.DrawLine(debugOrigin, debugOrigin + _lastReleaseDirection.normalized * _debugVectorSize);
+        }
     }
 }
