@@ -18,6 +18,8 @@ public class ShieldCollider : NetworkBehaviour
     private PlayerMovement _playerMovement;
     private bool _isCatching;
 
+    public Transform BallAnchor => _BallAnchor;
+
     private void Awake()
     {
         if (_Player != null)
