@@ -14,9 +14,8 @@ public class LogicBall : NetworkBehaviour
     [Header("Settings Utility")]
     private SyncVar<Vector3[]> _trajectory = new(null);
     private SyncVar<float> _duration = new(0f);
-
-    // Shield lock state (minimal impact on existing LogicBall flow)
-    private bool _isAttachedToShield = false;
+    private SyncVar<bool> _isAttachedToShieldNet = new(false);
+    private SyncVar<Vector3> _shieldAnchorNet = new(Vector3.zero);
 
     // Trajectory utility 
     private double _startTime = 0f;
@@ -56,8 +55,12 @@ public class LogicBall : NetworkBehaviour
     }
     private void Update()
     {
-        if (_isAttachedToShield)
+        if (_isAttachedToShieldNet.value)
+        {
+            Vector3 anchor = _shieldAnchorNet.value;
+            transform.position = new Vector3(anchor.x, transform.position.y, anchor.z);
             return;
+        }
 
         if (_isRun && _trajectory != null && _trajectory.value.Length > 0)
             FlowTrajectory();
@@ -76,8 +79,8 @@ public class LogicBall : NetworkBehaviour
         if (!isServer)
             return;
 
-        _isAttachedToShield = true;
-        _isRun = false;
+        Vector3 anchor = anchorTransform != null ? anchorTransform.position : transform.position;
+        SetShieldAttachmentStateServer(true, anchor, transform.forward, false);
     }
 
     public void ReleaseFromShield(Vector3 direction, float speedMultiplier)
@@ -85,13 +88,9 @@ public class LogicBall : NetworkBehaviour
         if (!isServer)
             return;
 
-        _isAttachedToShield = false;
-
         Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
         moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
-
-        _hasRequestedNextTrajectory = true;
-        RequestNewTrajectoryRpc(transform.position, releaseDirection);
+        SetShieldAttachmentStateServer(false, transform.position, releaseDirection, true);
     }
 
     private void FlowTrajectory()
@@ -213,6 +212,36 @@ public class LogicBall : NetworkBehaviour
             float dist = CalculateTotalDistance(newPath);
             SetupLocalMove(newPath, dist);
         }
+    }
+
+    /// <summary>
+    /// Single server entrypoint for attached -> released transitions to avoid server/client path pose conflicts.
+    /// </summary>
+    private void SetShieldAttachmentStateServer(bool isAttached, Vector3 anchorPosition, Vector3 releaseDirection, bool relaunchTrajectory)
+    {
+        if (!isServer)
+            return;
+
+        StopCurrentTrajectory();
+        _shieldAnchorNet.value = anchorPosition;
+        _isAttachedToShieldNet.value = isAttached;
+        transform.position = new Vector3(anchorPosition.x, transform.position.y, anchorPosition.z);
+
+        if (isAttached || !relaunchTrajectory)
+            return;
+
+        _hasRequestedNextTrajectory = true;
+        RequestNewTrajectoryRpc(transform.position, releaseDirection);
+    }
+
+    private void StopCurrentTrajectory()
+    {
+        _isRun = false;
+        _hasRequestedNextTrajectory = false;
+        _isFollowingCustomTrajectory = false;
+        _currentIndex = 0;
+        _totalPathDistance = 0f;
+        _startTime = GetTime();
     }
 
     private void SetupLocalMove(Vector3[] path, float totalDist)
