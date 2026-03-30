@@ -18,6 +18,9 @@ public class LogicBall : NetworkBehaviour
     // Shield lock state (minimal impact on existing LogicBall flow)
     private readonly SyncVar<bool> _isAttachedToShieldSync = new(false);
     private bool _isAttachedToShield = false;
+    private Transform _shieldAnchor;
+    private Vector3 _attachedFallbackPosition;
+    private double _attachTimeoutAt;
 
     // Trajectory utility 
     private double _startTime = 0f;
@@ -67,7 +70,10 @@ public class LogicBall : NetworkBehaviour
     private void Update()
     {
         if (_isAttachedToShield)
+        {
+            FollowShieldAnchor();
             return;
+        }
 
         if (_isRun && _trajectory != null && _trajectory.value.Length > 0)
             FlowTrajectory();
@@ -86,9 +92,15 @@ public class LogicBall : NetworkBehaviour
         if (!isServer)
             return;
 
+        _shieldAnchor = anchorTransform;
+        _attachedFallbackPosition = anchorTransform != null ? anchorTransform.position : transform.position;
+        _attachTimeoutAt = duration > 0f ? GetTime() + duration : double.PositiveInfinity;
+
         _isAttachedToShield = true;
         _isAttachedToShieldSync.value = true;
         _isRun = false;
+
+        FollowShieldAnchor();
     }
 
     public void ReleaseFromShield(Vector3 direction, float speedMultiplier)
@@ -96,14 +108,42 @@ public class LogicBall : NetworkBehaviour
         if (!isServer)
             return;
 
-        _isAttachedToShield = false;
-        _isAttachedToShieldSync.value = false;
+        ClearShieldAttachmentState();
 
         Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
         moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, releaseDirection);
+    }
+
+
+    private void FollowShieldAnchor()
+    {
+        Vector3 anchorPosition = _shieldAnchor != null ? _shieldAnchor.position : _attachedFallbackPosition;
+        transform.position = anchorPosition;
+
+        if (_shieldAnchor != null)
+            transform.rotation = _shieldAnchor.rotation;
+
+        if (!isServer)
+            return;
+
+        if (GetTime() <= _attachTimeoutAt)
+            return;
+
+        // Fallback only: state timing authority remains in PlayerShieldImpactController.
+        ClearShieldAttachmentState();
+        _hasRequestedNextTrajectory = true;
+        RequestNewTrajectoryRpc(transform.position, transform.forward);
+    }
+
+    private void ClearShieldAttachmentState()
+    {
+        _isAttachedToShield = false;
+        _isAttachedToShieldSync.value = false;
+        _shieldAnchor = null;
+        _attachTimeoutAt = 0d;
     }
 
     private void FlowTrajectory()
@@ -230,6 +270,11 @@ public class LogicBall : NetworkBehaviour
     private void OnShieldAttachChanged(bool attached)
     {
         _isAttachedToShield = attached;
+
+        if (attached)
+            _attachedFallbackPosition = transform.position;
+        else
+            _shieldAnchor = null;
     }
 
     private void SetupLocalMove(Vector3[] path, float totalDist)
