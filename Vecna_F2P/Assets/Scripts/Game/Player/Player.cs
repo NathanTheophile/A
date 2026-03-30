@@ -9,7 +9,8 @@ public class Player : NetworkBehaviour
     private Vector3 _Direction;
     public float _RotationSpeed = 4f;
     public int _RemainingLife = 3;
-    private bool _IsMovementLocked = false;
+
+    private readonly SyncVar<bool> _isMovementLockedSync = new(false);
 
     protected override void OnSpawned()
     {
@@ -24,26 +25,38 @@ public class Player : NetworkBehaviour
         Debug.DrawRay(transform.position, Vector3.forward);
         _Direction = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
 
-        if (_Direction.sqrMagnitude > 0.0001f)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(_Direction.normalized, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _RotationSpeed * Time.deltaTime);
-        }
+        UpdateRotation();
+        UpdateTranslation();
+    }
 
-        if (!_IsMovementLocked)
-        {
-            transform.position += _Direction * (Time.deltaTime * _Speed);
-            transform.position = new Vector3(transform.position.x, -1f, transform.position.z);
-        }
+    private void UpdateRotation()
+    {
+        if (_Direction.sqrMagnitude <= 0.0001f)
+            return;
+
+        Quaternion targetRotation = Quaternion.LookRotation(_Direction.normalized, Vector3.up);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _RotationSpeed * Time.deltaTime);
+    }
+
+    private void UpdateTranslation()
+    {
+        if (_isMovementLockedSync.value)
+            return;
+
+        transform.position += _Direction * (Time.deltaTime * _Speed);
+        transform.position = new Vector3(transform.position.x, -1f, transform.position.z);
     }
 
     public void BallNearPlayer()
     {
-        
+
     }
 
     public void SetMovementLock(bool isLocked)
     {
-        _IsMovementLocked = isLocked;
+        if (!isServer)
+            return;
+
+        _isMovementLockedSync.value = isLocked;
     }
 }
