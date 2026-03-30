@@ -4,46 +4,20 @@ using PurrNet;
 public class Player : NetworkBehaviour
 {
     [SerializeField] private PlayerArchitecture _PlayerProfile;
-    [SerializeField] private Collider playerCollider;
-    public float _Speed = 20f;
-    private Vector3 _Direction;
-    public float _RotationSpeed = 4f;
-    public int _RemainingLife = 3;
-    private bool _IsMovementLocked = false;
+    //private float _Speed = 20f;
+    //private Vector3 _Direction;
 
     protected override void OnSpawned()
     {
         base.OnSpawned();
 
         enabled = isOwner;
-
-    }
-
-    public void Update()
-    {
-        Debug.DrawRay(transform.position, Vector3.forward);
-        _Direction = new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
-
-        if (_Direction.sqrMagnitude > 0.0001f)
+        if (GetComponent<PlayerMovement>())
         {
-            Quaternion targetRotation = Quaternion.LookRotation(_Direction.normalized, Vector3.up);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _RotationSpeed * Time.deltaTime);
-        }
-
-        if (!_IsMovementLocked)
-        {
-            transform.position += _Direction * (Time.deltaTime * _Speed);
-            transform.position = new Vector3(transform.position.x, -1f, transform.position.z);
+            PlayerMovement lPlayerMove = GetComponent<PlayerMovement>();
+            lPlayerMove.UpdateStats(_PlayerProfile.Speed, _PlayerProfile.TimeToFullSpeed, _PlayerProfile.TimeToStop, _PlayerProfile.RotationSpeed);
         }
     }
 
-    public void BallNearPlayer()
-    {
-        
-    }
-
-    public void SetMovementLock(bool isLocked)
-    {
-        _IsMovementLocked = isLocked;
-    }
+    
 }

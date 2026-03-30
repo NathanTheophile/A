@@ -12,4 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f949cc701b3a1264593a52ead7f801c2, type: 3}
   m_Name: DefaultProfile
   m_EditorClassIdentifier: 
+  Size: {x: 1, y: 1}
   Speed: 10
+  TimeToFullSpeed: 1
+  TimeToStop: 0.5
+  RotationSpeed: 45

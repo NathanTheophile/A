@@ -16,7 +16,6 @@ public class LogicBall : NetworkBehaviour
     private SyncVar<float> _duration = new(0f);
 
     // Shield lock state (minimal impact on existing LogicBall flow)
-    private readonly SyncVar<bool> _isAttachedToShieldSync = new(false);
     private bool _isAttachedToShield = false;
 
     // Trajectory utility 
@@ -31,7 +30,6 @@ public class LogicBall : NetworkBehaviour
     {
         base.OnSpawned(asServer);
         Subscib(true);
-        _isAttachedToShield = _isAttachedToShieldSync.value;
 
         if (isServer)
         {
@@ -53,16 +51,8 @@ public class LogicBall : NetworkBehaviour
     }
     private void Subscib(bool pState)
     {
-        if (pState)
-        {
-            _trajectory.onChanged += OnTrajectoryChanged;
-            _isAttachedToShieldSync.onChanged += OnShieldAttachChanged;
-        }
-        else
-        {
-            _trajectory.onChanged -= OnTrajectoryChanged;
-            _isAttachedToShieldSync.onChanged -= OnShieldAttachChanged;
-        }
+        if (pState) _trajectory.onChanged += OnTrajectoryChanged;
+        else _trajectory.onChanged -= OnTrajectoryChanged;
     }
     private void Update()
     {
@@ -87,7 +77,6 @@ public class LogicBall : NetworkBehaviour
             return;
 
         _isAttachedToShield = true;
-        _isAttachedToShieldSync.value = true;
         _isRun = false;
     }
 
@@ -97,7 +86,6 @@ public class LogicBall : NetworkBehaviour
             return;
 
         _isAttachedToShield = false;
-        _isAttachedToShieldSync.value = false;
 
         Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
         moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
@@ -225,11 +213,6 @@ public class LogicBall : NetworkBehaviour
             float dist = CalculateTotalDistance(newPath);
             SetupLocalMove(newPath, dist);
         }
-    }
-
-    private void OnShieldAttachChanged(bool attached)
-    {
-        _isAttachedToShield = attached;
     }
 
     private void SetupLocalMove(Vector3[] path, float totalDist)
