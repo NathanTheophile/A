@@ -1,7 +1,7 @@
 using UnityEngine;
 using PurrNet;
 
-public class PlayerCollider : NetworkBehaviour
+public class PlayerExtendedCollider : NetworkBehaviour
 {
     [Header("References")]
     [SerializeField] private Player _Player;
@@ -12,12 +12,7 @@ public class PlayerCollider : NetworkBehaviour
         if (!isServer) return;
 
         LogicBall ball = other.GetComponent<LogicBall>();
-
         if (ball == null) return;
-
-        Debug.Log("Je vais déclencher slow");
-
-        SlowMotionTrigger(.5f, ball, .5f);
     }
 
     // si le joueur se déplace et que la balle ressort du cercle de détection, elle repart vers son forward.
@@ -27,10 +22,5 @@ public class PlayerCollider : NetworkBehaviour
 
         LogicBall ball = other.GetComponent<LogicBall>();
         if (ball == null) return;
-
-        SlowMotionTrigger(1f, ball, 2f);
     }
-
-    [ObserversRpc]
-    private void SlowMotionTrigger(float pSpeed, LogicBall pBall, float value) { /*if(isServer) pBall.moveSpeed = pBall.moveSpeed * value; Debug.Log("Je déclenche le slow"); Time.timeScale = pSpeed;*/}
 }
