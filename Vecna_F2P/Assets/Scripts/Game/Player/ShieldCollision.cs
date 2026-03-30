@@ -1,12 +1,12 @@
-using UnityEngine;
 using PurrNet;
-using Edgegap.Editor;
+using UnityEngine;
 
 public class ShieldCollision : NetworkBehaviour
 {
     [SerializeField] private Player _Player;
     [SerializeField] private LayerMask _ShieldLayer;
     [SerializeField, Min(0.01f)] private float _ImpactRayDistance = 3f;
+    [SerializeField] private PlayerShieldImpactController _ImpactController;
 
     private void OnValidate()
     {
@@ -19,8 +19,12 @@ public class ShieldCollision : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (!isServer)
+            return;
+
         LogicBall lBall = other.GetComponent<LogicBall>();
-        if (lBall == null) return;
+        if (lBall == null)
+            return;
 
         Vector3 lStartPos = lBall.transform.position;
         Vector3 lDirection = lBall.transform.forward.normalized;
@@ -34,26 +38,25 @@ public class ShieldCollision : NetworkBehaviour
         Collider shieldCollider = GetComponent<Collider>();
         bool isShieldLayer = (_ShieldLayer.value & (1 << gameObject.layer)) != 0;
         bool isShieldTag = gameObject.tag == "Shield";
-        if (shieldCollider == null || (!isShieldLayer && !isShieldTag)) return;
+        if (shieldCollider == null || (!isShieldLayer && !isShieldTag))
+            return;
 
         Vector3 lFallbackPoint = shieldCollider.ClosestPoint(lStartPos);
         Vector3 lFallbackNormal = (lStartPos - lFallbackPoint).normalized;
         if (lFallbackNormal.sqrMagnitude < Mathf.Epsilon)
-        {
             lFallbackNormal = -lDirection;
-        }
 
         ProcessImpact(lBall, lStartPos, lFallbackPoint, lFallbackNormal);
     }
 
     private void ProcessImpact(LogicBall ball, Vector3 startPos, Vector3 hitPoint, Vector3 hitNormal)
     {
-        Debug.Log("J'ai hit le shield");
-        Vector3 lIncomingVec = hitPoint - startPos;
-        Vector3 lReflectVec = Vector3.Reflect(lIncomingVec, hitNormal);
+        if (_ImpactController == null)
+        {
+            Debug.LogWarning("PlayerShieldImpactController manquant sur ShieldCollision.");
+            return;
+        }
 
-        Debug.DrawLine(startPos, hitPoint, Color.red);
-        Debug.DrawRay(hitPoint, lReflectVec * 100f, Color.green);
-        ball.RequestNewTrajectoryRpc(startPos, lReflectVec);
+        _ImpactController.TryHandleImpact(ball, startPos, hitPoint, hitNormal);
     }
 }
