@@ -5,6 +5,12 @@ using UnityEngine;
 
 public class PlayerMovement : NetworkBehaviour
 {
+    public enum MovementLockMode
+    {
+        Normal,
+        RotationOnly
+    }
+
     [SerializeField] public float maxSpeed = 10;
     [SerializeField] public float timeToFull = 0.5f;
     [SerializeField] public float timeToEmpty = 0.5f;
@@ -16,6 +22,7 @@ public class PlayerMovement : NetworkBehaviour
     private float _TimeHeld = 0;
     private bool _IsHeld = false;
     private bool _Aligned = true;
+    private MovementLockMode _movementLockMode = MovementLockMode.Normal;
 
     private void OnEnable()
     {
@@ -35,6 +42,9 @@ public class PlayerMovement : NetworkBehaviour
     /// </summary>
     private void Move()
     {
+        if (_movementLockMode == MovementLockMode.RotationOnly)
+            return;
+
         if (_Inertia != 0) //Movement if inertia
         {
             //Direction, speed, inertia
@@ -129,6 +139,11 @@ public class PlayerMovement : NetworkBehaviour
         timeToFull = pFull;
         timeToEmpty = pEmpty;
         rotSpeed = pRot;
+    }
+
+    public void SetMovementLockMode(MovementLockMode mode)
+    {
+        _movementLockMode = mode;
     }
 
     private void OnDisable()

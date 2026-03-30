@@ -44,6 +44,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
     private Vector3 _knockbackStart;
     private Vector3 _knockbackTarget;
     private float _knockbackStartTime;
+    private PlayerMovement _playerMovement;
 
     public ImpactState CurrentState => _currentState;
 
@@ -87,6 +88,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         _currentState = ImpactState.ShieldImpactLock;
         _lockedBall = ball;
         _releaseAtTime = Time.time + _lockDuration;
+        SetMovementLockMode(PlayerMovement.MovementLockMode.RotationOnly);
 
         Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : hitPoint;
         _lockedBall.transform.position = lockPosition;
@@ -130,6 +132,12 @@ public class PlayerShieldImpactController : NetworkBehaviour
 
     private void UpdateShieldImpactLock()
     {
+        if (_lockedBall == null)
+        {
+            EndLock();
+            return;
+        }
+
         if (_lockedBall != null)
         {
             Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : _lockedBall.transform.position;
@@ -154,8 +162,23 @@ public class PlayerShieldImpactController : NetworkBehaviour
             _lockedBall.ReleaseFromShield(_lastReleaseDirection, _releaseSpeed);
         }
 
+        EndLock();
+    }
+
+    private void EndLock()
+    {
         _lockedBall = null;
         _currentState = ImpactState.Idle;
+        SetMovementLockMode(PlayerMovement.MovementLockMode.Normal);
+    }
+
+    private void SetMovementLockMode(PlayerMovement.MovementLockMode mode)
+    {
+        if (_playerMovement == null && _player != null)
+            _playerMovement = _player.GetComponent<PlayerMovement>();
+
+        if (_playerMovement != null)
+            _playerMovement.SetMovementLockMode(mode);
     }
 
     private Vector3 ComputeReleaseDirection()
