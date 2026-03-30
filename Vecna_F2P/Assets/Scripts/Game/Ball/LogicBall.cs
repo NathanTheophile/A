@@ -15,10 +15,12 @@ public class LogicBall : NetworkBehaviour
     private SyncVar<Vector3[]> _trajectory = new(null);
     private SyncVar<float> _duration = new(0f);
 
-    // Shield lock state (minimal impact on existing LogicBall flow)
+    // Shield lock state
     private bool _isAttachedToShield = false;
+    private Transform _shieldAnchor;
+    private Vector3 _shieldLocalOffset;
 
-    // Trajectory utility 
+    // Trajectory utility
     private double _startTime = 0f;
     private float _totalPathDistance = 0f;
     private int _currentIndex = 0;
@@ -44,20 +46,26 @@ public class LogicBall : NetworkBehaviour
             }
         }
     }
+
     protected override void OnDespawned(bool asServer)
     {
         base.OnDespawned(asServer);
         Subscib(false);
     }
+
     private void Subscib(bool pState)
     {
         if (pState) _trajectory.onChanged += OnTrajectoryChanged;
         else _trajectory.onChanged -= OnTrajectoryChanged;
     }
+
     private void Update()
     {
         if (_isAttachedToShield)
+        {
+            FollowShieldAnchor();
             return;
+        }
 
         if (_isRun && _trajectory != null && _trajectory.value.Length > 0)
             FlowTrajectory();
@@ -70,28 +78,45 @@ public class LogicBall : NetworkBehaviour
         RequestNewTrajectoryRpc(transform.position, transform.forward);
     }
 
-    // Minimal APIs used by shield code without changing existing trajectory internals.
     public void BeginShieldAttach(int playerId, Transform anchorTransform, float duration)
     {
-        if (!isServer)
-            return;
-
         _isAttachedToShield = true;
         _isRun = false;
+        _shieldAnchor = anchorTransform;
+
+        if (_shieldAnchor != null)
+            _shieldLocalOffset = transform.position - _shieldAnchor.position;
+        else
+            _shieldLocalOffset = Vector3.zero;
     }
 
     public void ReleaseFromShield(Vector3 direction, float speedMultiplier)
     {
-        if (!isServer)
-            return;
-
         _isAttachedToShield = false;
+        _shieldAnchor = null;
 
-        Vector3 releaseDirection = direction.sqrMagnitude < 0.0001f ? transform.forward : direction.normalized;
+        Vector3 releaseDirection = direction;
+        releaseDirection.y = 0f;
+        if (releaseDirection.sqrMagnitude < 0.0001f)
+            releaseDirection = transform.forward;
+
+        releaseDirection.y = 0f;
+        releaseDirection.Normalize();
+        transform.forward = releaseDirection;
+
         moveSpeed = Mathf.Max(0.01f, moveSpeed * Mathf.Max(0.01f, speedMultiplier));
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, releaseDirection);
+    }
+
+    private void FollowShieldAnchor()
+    {
+        if (_shieldAnchor == null)
+            return;
+
+        Vector3 targetPos = _shieldAnchor.position + _shieldLocalOffset;
+        transform.position = new Vector3(targetPos.x, transform.position.y, targetPos.z);
     }
 
     private void FlowTrajectory()
@@ -194,14 +219,7 @@ public class LogicBall : NetworkBehaviour
 
     public void SetCustomTrajectory(Vector3[] customPath)
     {
-        if (isServer)
-        {
-            SetCustomTrajectoryRpc(customPath);
-        }
-        else
-        {
-            SetCustomTrajectoryRpc(customPath);
-        }
+        SetCustomTrajectoryRpc(customPath);
     }
 
     private void OnTrajectoryChanged(Vector3[] newPath)
@@ -242,12 +260,4 @@ public class LogicBall : NetworkBehaviour
     }
 
     private double GetTime() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
-
-    //private void OnDrawGizmos()
-    //{
-    //    for (int i = 0; i < _trajectory.value.Length - 1; i++)
-    //    {
-    //        Debug.DrawLine(_trajectory.value[i], _trajectory.value[i + 1]);
-    //    }
-    //}
 }
