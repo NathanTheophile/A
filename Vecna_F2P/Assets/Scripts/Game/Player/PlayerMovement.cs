@@ -35,6 +35,7 @@ public class PlayerMovement : NetworkBehaviour
         ProgRotate();
         //Resets every time if not being held.
         if (_IsHeld) _IsHeld = false;
+        transform.position = new Vector3(transform.position.x, 0, transform.position.z);
     }
 
     /// <summary>
