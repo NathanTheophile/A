@@ -214,6 +214,15 @@ public class LogicBall : NetworkBehaviour
         SetCustomTrajectoryRpc(customPath);
     }
 
+    public void RequestCurveToAnchor(Vector3 anchorPosition, int resolution = 12, float amplitude = 1.2f, bool useSinus = true)
+    {
+        Vector3[] path = useSinus
+            ? BuildSinusoidalPath(transform.position, anchorPosition, Mathf.Max(3, resolution), amplitude)
+            : BuildBezierPath(transform.position, anchorPosition, Mathf.Max(3, resolution), amplitude);
+
+        SetCustomTrajectoryRpc(path);
+    }
+
     private void OnTrajectoryChanged(Vector3[] newPath)
     {
         if (isServer) return;
@@ -249,6 +258,71 @@ public class LogicBall : NetworkBehaviour
         for (int i = 0; i < path.Length - 1; i++)
             dist += Vector3.Distance(path[i], path[i + 1]);
         return dist;
+    }
+
+    private Vector3[] BuildSinusoidalPath(Vector3 start, Vector3 end, int resolution, float amplitude)
+    {
+        Vector3[] path = new Vector3[resolution + 1];
+        Vector3 toTarget = end - start;
+        Vector3 flatDir = Vector3.ProjectOnPlane(toTarget, Vector3.up).normalized;
+        if (flatDir.sqrMagnitude < 0.0001f)
+            flatDir = transform.forward;
+
+        Vector3 curveOffsetDir = GetCurveOffsetDirection(flatDir);
+
+        for (int i = 0; i <= resolution; i++)
+        {
+            float t = i / (float)resolution;
+            Vector3 point = Vector3.Lerp(start, end, t);
+            float sinOffset = Mathf.Sin(t * Mathf.PI) * amplitude;
+            point += curveOffsetDir * sinOffset;
+            point.y = transform.position.y;
+            path[i] = point;
+        }
+
+        path[0] = start;
+        path[path.Length - 1] = new Vector3(end.x, transform.position.y, end.z);
+        return path;
+    }
+
+    private Vector3[] BuildBezierPath(Vector3 start, Vector3 end, int resolution, float amplitude)
+    {
+        Vector3[] path = new Vector3[resolution + 1];
+        Vector3 toTarget = end - start;
+        Vector3 flatDir = Vector3.ProjectOnPlane(toTarget, Vector3.up).normalized;
+        if (flatDir.sqrMagnitude < 0.0001f)
+            flatDir = transform.forward;
+
+        Vector3 curveOffsetDir = GetCurveOffsetDirection(flatDir);
+        Vector3 control = Vector3.Lerp(start, end, 0.5f) + curveOffsetDir * amplitude;
+        control.y = transform.position.y;
+
+        for (int i = 0; i <= resolution; i++)
+        {
+            float t = i / (float)resolution;
+            Vector3 a = Vector3.Lerp(start, control, t);
+            Vector3 b = Vector3.Lerp(control, end, t);
+            Vector3 point = Vector3.Lerp(a, b, t);
+            point.y = transform.position.y;
+            path[i] = point;
+        }
+
+        path[0] = start;
+        path[path.Length - 1] = new Vector3(end.x, transform.position.y, end.z);
+        return path;
+    }
+
+    private Vector3 GetCurveOffsetDirection(Vector3 toTargetDir)
+    {
+        Vector3 currentDir = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+        if (currentDir.sqrMagnitude < 0.0001f)
+            currentDir = toTargetDir;
+
+        float signedAngle = Vector3.SignedAngle(currentDir, toTargetDir, Vector3.up);
+        float turnSign = Mathf.Approximately(signedAngle, 0f) ? 1f : Mathf.Sign(signedAngle);
+
+        Vector3 left = Vector3.Cross(toTargetDir, Vector3.up).normalized;
+        return turnSign >= 0f ? left : -left;
     }
 
     private double GetTime() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
