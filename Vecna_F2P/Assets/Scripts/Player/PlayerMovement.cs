@@ -10,6 +10,7 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] public float timeToEmpty = 0.5f;
     [SerializeField] public float rotSpeed = 15f;
 
+    private readonly SyncVar<bool> _isMovementLockedSync = new(false);
 
     private Vector3 _LastInput;
     private float _Inertia = 0;
@@ -35,6 +36,12 @@ public class PlayerMovement : NetworkBehaviour
     /// </summary>
     private void Move()
     {
+        if (_isMovementLockedSync.value)
+        {
+            _Inertia = 0f;
+            return;
+        }
+
         if (_Inertia != 0) //Movement if inertia
         {
             //Direction, speed, inertia
@@ -115,6 +122,14 @@ public class PlayerMovement : NetworkBehaviour
     {
         //Vector2 pInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));//Temp for testing!!!
         _LastInput = new Vector3(pInput.x, 0, pInput.y);
+
+        if (_isMovementLockedSync.value)
+        {
+            _IsHeld = true;
+            _Aligned = false;
+            return;
+        }
+
         if (_Inertia < 1) _Inertia += Time.deltaTime / timeToFull;
         if (_Inertia > 1) _Inertia = 1;
         /*float lRot = Mathf.Rad2Deg * Mathf.Atan2(_LastInput.z, _LastInput.x);
@@ -129,6 +144,16 @@ public class PlayerMovement : NetworkBehaviour
         timeToFull = pFull;
         timeToEmpty = pEmpty;
         rotSpeed = pRot;
+    }
+
+    public void SetMovementLock(bool isLocked)
+    {
+        if (!isServer)
+            return;
+
+        _isMovementLockedSync.value = isLocked;
+        if (isLocked)
+            _Inertia = 0f;
     }
 
     private void OnDisable()
