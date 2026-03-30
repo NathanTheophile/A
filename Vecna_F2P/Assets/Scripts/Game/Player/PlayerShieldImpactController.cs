@@ -87,6 +87,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         _currentState = ImpactState.ShieldImpactLock;
         _lockedBall = ball;
         _releaseAtTime = Time.time + _lockDuration;
+        SetPlayerMovementLock(true);
 
         Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : hitPoint;
         _lockedBall.transform.position = lockPosition;
@@ -155,7 +156,16 @@ public class PlayerShieldImpactController : NetworkBehaviour
         }
 
         _lockedBall = null;
+        SetPlayerMovementLock(false);
         _currentState = ImpactState.Idle;
+    }
+
+    private void SetPlayerMovementLock(bool isLocked)
+    {
+        if (_player == null)
+            return;
+
+        _player.SetMovementLock(isLocked);
     }
 
     private Vector3 ComputeReleaseDirection()
