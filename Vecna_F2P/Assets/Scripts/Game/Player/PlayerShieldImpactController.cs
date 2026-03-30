@@ -25,7 +25,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
 
     [Header("Release")]
     [SerializeField, Min(0.01f)] private float _releaseSpeed = 1f;
-    [SerializeField, Range(0f, 1f)] private float _forwardInfluence = 0.35f;
+    [SerializeField, Range(0f, 1f)] private float _steerInfluence = 0.35f;
     [SerializeField, Range(0f, 89f)] private float _maxDeflectAngle = 60f;
 
     [Header("Debug")]
@@ -37,6 +37,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
     private ImpactState _currentState = ImpactState.Idle;
     private LogicBall _lockedBall;
     private Vector3 _incomingDirection;
+    private Vector3 _baseReflectionDirection;
     private Vector3 _lastHitNormal;
     private Vector3 _lastReleaseDirection;
     private float _releaseAtTime;
@@ -60,8 +61,10 @@ public class PlayerShieldImpactController : NetworkBehaviour
         if (incoming.sqrMagnitude < 0.0001f)
             incoming = ball.transform.forward;
 
-        _incomingDirection = incoming.normalized;
+        Vector3 incomingDir = incoming.normalized;
+        _incomingDirection = incomingDir;
         _lastHitNormal = hitNormal.sqrMagnitude < 0.0001f ? transform.forward : hitNormal.normalized;
+        _baseReflectionDirection = ComputeBaseReflectionDirection(incomingDir, _lastHitNormal);
 
         BeginLock(ball, hitPoint);
         return true;
@@ -98,7 +101,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         {
             _knockbackStart = _player.transform.position;
 
-            Vector3 planarRelease = Vector3.Reflect(_incomingDirection, _lastHitNormal);
+            Vector3 planarRelease = _baseReflectionDirection;
             planarRelease.y = 0f;
             if (planarRelease.sqrMagnitude < 0.0001f)
                 planarRelease = -_player.transform.forward;
@@ -183,18 +186,35 @@ public class PlayerShieldImpactController : NetworkBehaviour
 
     private Vector3 ComputeReleaseDirection()
     {
-        Vector3 shieldNormal = Vector3.ProjectOnPlane(
-            _lastHitNormal.sqrMagnitude < 0.0001f ? transform.forward : _lastHitNormal,
-            Vector3.up).normalized;
+        // Gameplay contract:
+        // - Le joueur peut tourner pendant le knockback pour orienter le renvoi.
+        // - Le renvoi reste fondé sur l'impact initial (incoming + hit normal), puis seulement influencé.
+        Vector3 baseDir = _baseReflectionDirection;
+        if (baseDir.sqrMagnitude < 0.0001f)
+            baseDir = ComputeBaseReflectionDirection(_incomingDirection, _lastHitNormal);
+
+        baseDir = Vector3.ProjectOnPlane(baseDir, Vector3.up).normalized;
         Vector3 playerForward = Vector3.ProjectOnPlane(
             _player != null ? _player.transform.forward : transform.forward,
             Vector3.up).normalized;
 
-        if (shieldNormal.sqrMagnitude < 0.0001f) shieldNormal = transform.forward;
-        if (playerForward.sqrMagnitude < 0.0001f) playerForward = shieldNormal;
+        if (baseDir.sqrMagnitude < 0.0001f) baseDir = transform.forward;
+        if (playerForward.sqrMagnitude < 0.0001f) playerForward = baseDir;
 
-        Vector3 blended = Vector3.Slerp(shieldNormal, playerForward, _forwardInfluence).normalized;
-        return Vector3.RotateTowards(playerForward, blended, Mathf.Deg2Rad * _maxDeflectAngle, 0f).normalized;
+        Vector3 steered = Vector3.Slerp(baseDir, playerForward, _steerInfluence).normalized;
+        Vector3 finalDir = Vector3.RotateTowards(baseDir, steered, Mathf.Deg2Rad * _maxDeflectAngle, 0f).normalized;
+        return finalDir;
+    }
+
+    private Vector3 ComputeBaseReflectionDirection(Vector3 incomingDir, Vector3 hitNormal)
+    {
+        Vector3 safeIncoming = incomingDir.sqrMagnitude < 0.0001f ? transform.forward : incomingDir.normalized;
+        Vector3 safeNormal = hitNormal.sqrMagnitude < 0.0001f ? transform.forward : hitNormal.normalized;
+        Vector3 baseDir = Vector3.Reflect(safeIncoming, safeNormal);
+        if (baseDir.sqrMagnitude < 0.0001f)
+            baseDir = -safeIncoming;
+
+        return baseDir.normalized;
     }
 
     private void OnDrawGizmosSelected()
@@ -214,6 +234,12 @@ public class PlayerShieldImpactController : NetworkBehaviour
         {
             Gizmos.color = Color.green;
             Gizmos.DrawLine(debugOrigin, debugOrigin + _lastReleaseDirection.normalized * _debugVectorSize);
+        }
+
+        if (_baseReflectionDirection.sqrMagnitude > 0.0001f)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(debugOrigin, debugOrigin + _baseReflectionDirection.normalized * _debugVectorSize);
         }
     }
 }
