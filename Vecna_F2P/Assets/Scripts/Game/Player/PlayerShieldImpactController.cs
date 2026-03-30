@@ -62,7 +62,7 @@ public class PlayerShieldImpactController : NetworkBehaviour
         _incomingDirection = incoming.normalized;
         _lastHitNormal = hitNormal.sqrMagnitude < 0.0001f ? transform.forward : hitNormal.normalized;
 
-        BeginLock(ball, hitPoint);
+        BeginLock(ball);
         return true;
     }
 
@@ -82,15 +82,13 @@ public class PlayerShieldImpactController : NetworkBehaviour
         return true;
     }
 
-    private void BeginLock(LogicBall ball, Vector3 hitPoint)
+    private void BeginLock(LogicBall ball)
     {
         _currentState = ImpactState.ShieldImpactLock;
         _lockedBall = ball;
         _releaseAtTime = Time.time + _lockDuration;
         SetPlayerMovementLock(true);
 
-        Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : hitPoint;
-        _lockedBall.transform.position = lockPosition;
         _lockedBall.BeginShieldAttach(_player != null ? _player.GetInstanceID() : GetInstanceID(), _ballLockPoint, _lockDuration);
 
         if (_player != null)
@@ -131,12 +129,6 @@ public class PlayerShieldImpactController : NetworkBehaviour
 
     private void UpdateShieldImpactLock()
     {
-        if (_lockedBall != null)
-        {
-            Vector3 lockPosition = _ballLockPoint != null ? _ballLockPoint.position : _lockedBall.transform.position;
-            _lockedBall.transform.position = lockPosition;
-        }
-
         if (_player != null)
         {
             float knockbackRatio = Mathf.Clamp01((Time.time - _knockbackStartTime) / _knockbackDuration);
