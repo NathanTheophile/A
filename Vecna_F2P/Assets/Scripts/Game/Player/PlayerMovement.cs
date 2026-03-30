@@ -1,7 +1,7 @@
 using Com.IsartDigital.F2P.Managers;
 using PurrNet;
+using System.Collections;
 using UnityEngine;
-
 
 public class PlayerMovement : NetworkBehaviour
 {
@@ -16,13 +16,14 @@ public class PlayerMovement : NetworkBehaviour
     [SerializeField] public float timeToEmpty = 0.5f;
     [SerializeField] public float rotSpeed = 15f;
 
-
     private Vector3 _LastInput;
     private float _Inertia = 0;
-    private float _TimeHeld = 0;
     private bool _IsHeld = false;
     private bool _Aligned = true;
     private MovementLockMode _movementLockMode = MovementLockMode.Normal;
+
+    private Vector3 _knockbackVelocity = Vector3.zero;
+    private Coroutine _unlockCoroutine;
 
     private void OnEnable()
     {
@@ -32,23 +33,20 @@ public class PlayerMovement : NetworkBehaviour
     private void Update()
     {
         Move();
+        ApplyKnockbackMotion();
         ProgRotate();
-        //Resets every time if not being held.
+
         if (_IsHeld) _IsHeld = false;
         transform.position = new Vector3(transform.position.x, 0, transform.position.z);
     }
 
-    /// <summary>
-    /// Handles movement
-    /// </summary>
     private void Move()
     {
         if (_movementLockMode == MovementLockMode.RotationOnly)
             return;
 
-        if (_Inertia != 0) //Movement if inertia
+        if (_Inertia != 0)
         {
-            //Direction, speed, inertia
             transform.position += _LastInput * maxSpeed * _Inertia * Time.deltaTime;
             if (!_IsHeld)
             {
@@ -58,20 +56,18 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    /// <summary>
-    /// Handles rotation if not aligned
-    /// </summary>
+    private void ApplyKnockbackMotion()
+    {
+        if (_knockbackVelocity.sqrMagnitude <= 0.0001f)
+            return;
+
+        transform.position += _knockbackVelocity * Time.deltaTime;
+        _knockbackVelocity = Vector3.Lerp(_knockbackVelocity, Vector3.zero, 12f * Time.deltaTime);
+    }
+
     private void ProgRotate()
     {
-        //Progressive turning concise with quaternions (does not work), using brute force for now.
-        /*if (!_Aligned)
-        {
-            Quaternion lRot = Quaternion.FromToRotation(transform.forward, _LastInput);
-            if (lRot == transform.rotation) _Aligned = true;
-            else transform.rotation = Quaternion.RotateTowards(transform.rotation, lRot, rotSpeed * Time.deltaTime);
-        }*/
-
-        if (!_Aligned) //Brute force method THIS IS NOT GOOD PRACTICE
+        if (!_Aligned)
         {
             float lRot = Mathf.Rad2Deg * Mathf.Atan2(-_LastInput.z, _LastInput.x);
             if (lRot < 0) lRot += 360;
@@ -79,9 +75,6 @@ public class PlayerMovement : NetworkBehaviour
             if (lRot == lCur) _Aligned = true;
             else
             {
-                //To go from X to Y. if Y< X -180 && 
-                //lRot is Y
-                //IF it exceeds the 180 in either of the two, we pick the other option. 181 +180 >360 so we pick 181-180 for rotation.
                 float lPlus = transform.eulerAngles.y + 180;
                 if (lPlus > 360) lPlus = -1;
                 float lMinus = transform.eulerAngles.y - 180;
@@ -97,7 +90,6 @@ public class PlayerMovement : NetworkBehaviour
                     else
                     {
                         lCur -= rotSpeed * Time.deltaTime;
-                        //if(lCur < lRot) lCur = lRot;
                     }
                 }
                 else if (lMinus != -1)
@@ -110,7 +102,6 @@ public class PlayerMovement : NetworkBehaviour
                     else
                     {
                         lCur += rotSpeed * Time.deltaTime;
-                        //if (lCur > lRot) lCur = lRot;
                     }
                 }
 
@@ -121,17 +112,40 @@ public class PlayerMovement : NetworkBehaviour
         }
     }
 
-    //InputManager calls this or event causes this to get triggered
     public void OnInput(Vector2 pInput)
     {
-        //Vector2 pInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));//Temp for testing!!!
         _LastInput = new Vector3(pInput.x, 0, pInput.y);
         if (_Inertia < 1) _Inertia += Time.deltaTime / timeToFull;
         if (_Inertia > 1) _Inertia = 1;
-        /*float lRot = Mathf.Rad2Deg * Mathf.Atan2(_LastInput.z, _LastInput.x);
-        transform.eulerAngles = Vector3.down * lRot;*/
+
         _IsHeld = true;
         _Aligned = false;
+    }
+
+    public void ApplyKnockbackAndRotationLock(Vector3 knockbackDirection, float knockbackDistance, float knockbackDuration, float lockDuration)
+    {
+        Vector3 flatDirection = new Vector3(knockbackDirection.x, 0f, knockbackDirection.z).normalized;
+        if (flatDirection.sqrMagnitude <= 0.0001f)
+            flatDirection = -transform.forward;
+
+        float safeDuration = Mathf.Max(0.05f, knockbackDuration);
+        float safeDistance = Mathf.Max(0f, knockbackDistance);
+        _knockbackVelocity = flatDirection * (safeDistance / safeDuration);
+
+        SetMovementLockMode(MovementLockMode.RotationOnly);
+
+        if (_unlockCoroutine != null)
+            StopCoroutine(_unlockCoroutine);
+
+        _unlockCoroutine = StartCoroutine(UnlockAfterDelay(Mathf.Max(0.05f, lockDuration)));
+    }
+
+    private IEnumerator UnlockAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        _knockbackVelocity = Vector3.zero;
+        SetMovementLockMode(MovementLockMode.Normal);
+        _unlockCoroutine = null;
     }
 
     public void UpdateStats(float pSpeed, float pFull, float pEmpty, float pRot)
