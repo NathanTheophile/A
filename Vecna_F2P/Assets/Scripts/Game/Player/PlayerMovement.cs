@@ -23,6 +23,9 @@ public class PlayerMovement : NetworkBehaviour
     private bool _IsHeld = false;
     private bool _Aligned = true;
     private MovementLockMode _movementLockMode = MovementLockMode.Normal;
+    private Vector3 _externalVelocity = Vector3.zero;
+    private float _knockbackStopSpeed = 0f;
+
 
     private void OnEnable()
     {
@@ -43,6 +46,12 @@ public class PlayerMovement : NetworkBehaviour
     /// </summary>
     private void Move()
     {
+        if (_externalVelocity.sqrMagnitude > 0.0001f)
+        {
+            transform.position += _externalVelocity * Time.deltaTime;
+            _externalVelocity = Vector3.MoveTowards(_externalVelocity, Vector3.zero, (_knockbackStopSpeed) * Time.deltaTime);
+        }
+
         if (_movementLockMode == MovementLockMode.RotationOnly)
             return;
 
@@ -145,6 +154,20 @@ public class PlayerMovement : NetworkBehaviour
     public void SetMovementLockMode(MovementLockMode mode)
     {
         _movementLockMode = mode;
+    }
+
+
+    public void ApplyKnockback(Vector3 direction, float distance, float duration)
+    {
+        if (duration <= 0f || distance <= 0f || direction.sqrMagnitude < 0.0001f)
+            return;
+
+        Vector3 flatDirection = direction.normalized;
+        flatDirection.y = 0f;
+
+        float speed = distance / duration;
+        _externalVelocity = flatDirection * speed;
+        _knockbackStopSpeed = speed / duration;
     }
 
     private void OnDisable()
