@@ -99,12 +99,16 @@ public class LogicBall : NetworkBehaviour
 
     public void ReleaseFromShield(Vector3 pDirection, float pSpeedMultiplier)
     {
+        Transform lReleasedFromAnchor = _ShieldAnchor;
         isAttachedToShield = false;
         _ShieldAnchor = null;
         _ReattachBlockedUntilTime = GetTime() + 0.2d;
 
         Vector3 lReleaseDirection = pDirection.sqrMagnitude < 0.0001f ? transform.forward : pDirection.normalized;
         MoveSpeed = Mathf.Max(0.01f, MoveSpeed * Mathf.Max(0.01f, pSpeedMultiplier));
+
+        // Push a little bit outside of the shield so the same trigger does not instantly catch again.
+        transform.position += lReleaseDirection * 0.15f;
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, lReleaseDirection);
