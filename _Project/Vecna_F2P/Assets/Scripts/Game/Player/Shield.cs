@@ -51,8 +51,7 @@ public class Shield : NetworkBehaviour
         if (lBall == null)
             return;
 
-        int lPlayerId = _Player != null ? _Player.GetInstanceID() : 0;
-        if (!lBall.CanBeAttachedByShield(lPlayerId))
+        if (!lBall.CanBeCaughtByShield(_BallAnchor))
             return;
 
         StartCoroutine(CatchAndRecoil(lBall));

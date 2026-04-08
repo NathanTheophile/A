@@ -28,8 +28,9 @@ public class LogicBall : NetworkBehaviour
     private Vector3 _ShieldAttachStartPosition;
     private double _ShieldAttachStartTime;
     private float _ShieldAttachDuration;
-    private int _LastShieldOwnerId;
-    private double _ReattachBlockedUntilTime;
+    private Transform _lastShieldAnchor;
+    private double _lastShieldReleaseTime;
+    [SerializeField] private float _sameShieldRecatchImmunity = 0.35f;
 
     // Trajectory utility
     private double _startTime = 0f;
@@ -90,7 +91,7 @@ public class LogicBall : NetworkBehaviour
     {
         isAttachedToShield = true;
         _isRun = false;
-        _LastShieldOwnerId = pPlayerId;
+        _hasRequestedNextTrajectory = false;
         _ShieldAnchor = pAnchorTransform;
         _ShieldAttachStartPosition = transform.position;
         _ShieldAttachStartTime = GetTime();
@@ -99,26 +100,34 @@ public class LogicBall : NetworkBehaviour
 
     public void ReleaseFromShield(Vector3 pDirection, float pSpeedMultiplier)
     {
+        Transform lReleasedFromAnchor = _ShieldAnchor;
         isAttachedToShield = false;
         _ShieldAnchor = null;
-        _ReattachBlockedUntilTime = GetTime() + 0.2d;
+        _lastShieldAnchor = lReleasedFromAnchor;
+        _lastShieldReleaseTime = GetTime();
 
         Vector3 lReleaseDirection = pDirection.sqrMagnitude < 0.0001f ? transform.forward : pDirection.normalized;
         MoveSpeed = Mathf.Max(0.01f, MoveSpeed * Mathf.Max(0.01f, pSpeedMultiplier));
+
+        // Push a little bit outside of the shield so the same trigger does not instantly catch again.
+        transform.position += lReleaseDirection * 0.15f;
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, lReleaseDirection);
     }
 
-    public bool CanBeAttachedByShield(int pPlayerId)
+    public bool CanBeCaughtByShield(Transform pAnchorTransform)
     {
         if (isAttachedToShield)
             return false;
 
-        if (GetTime() < _ReattachBlockedUntilTime && pPlayerId == _LastShieldOwnerId)
-            return false;
+        if (pAnchorTransform == null || _lastShieldAnchor == null)
+            return true;
 
-        return true;
+        if (pAnchorTransform != _lastShieldAnchor)
+            return true;
+
+        return (GetTime() - _lastShieldReleaseTime) >= _sameShieldRecatchImmunity;
     }
 
 
