@@ -70,15 +70,12 @@ public class PlayerMovement : NetworkBehaviour
     /// </summary>
     private void Move()
     {
+        ApplyExternalVelocity();
+
         if (_MovementLockMode == MovementLockMode.RotationOnly) return;
         ClampVelocity();
         ApplyVelocity();
         ApplyFriction();
-        //if (_ExternalVelocity.sqrMagnitude > 0.0001f)
-        //{
-        //    transform.position += _ExternalVelocity * Time.deltaTime;
-        //    _ExternalVelocity = Vector3.MoveTowards(_ExternalVelocity, Vector3.zero, (_KnockbackStopSpeed) * Time.deltaTime);
-        //}
 
 
         // if (_Inertia != 0) //Movement if inertia
@@ -91,6 +88,14 @@ public class PlayerMovement : NetworkBehaviour
         //         if (_Inertia < 0) _Inertia = 0;
         //     }
         // }
+    }
+    private void ApplyExternalVelocity()
+    {
+        if (_ExternalVelocity.sqrMagnitude <= 0.0001f)
+            return;
+
+        transform.position += _ExternalVelocity * Time.deltaTime;
+        _ExternalVelocity = Vector3.MoveTowards(_ExternalVelocity, Vector3.zero, _KnockbackStopSpeed * Time.deltaTime);
     }
     private void ApplyVelocity() => transform.position += _Velocity * Time.deltaTime;
     private void ApplyInputForce() => _Velocity += _LastInput * accelerationForce * Time.deltaTime;
