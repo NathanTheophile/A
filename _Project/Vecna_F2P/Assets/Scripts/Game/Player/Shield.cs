@@ -41,7 +41,9 @@ public class Shield : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!isServer)
+        // Local owner is required for responsive knockback/anchor visuals,
+        // server is required for authoritative trajectory updates.
+        if (!isServer && !isOwner)
             return;
 
         if (_isCatching)
@@ -51,7 +53,8 @@ public class Shield : NetworkBehaviour
         if (lBall == null)
             return;
 
-        if (!lBall.CanBeCaughtByShield(_BallAnchor))
+        int lPlayerId = _Player != null ? _Player.GetInstanceID() : 0;
+        if (!lBall.CanBeAttachedByShield(lPlayerId))
             return;
 
         StartCoroutine(CatchAndRecoil(lBall));

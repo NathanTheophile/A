@@ -28,9 +28,8 @@ public class LogicBall : NetworkBehaviour
     private Vector3 _ShieldAttachStartPosition;
     private double _ShieldAttachStartTime;
     private float _ShieldAttachDuration;
-    private Transform _lastShieldAnchor;
-    private double _lastShieldReleaseTime;
-    [SerializeField] private float _sameShieldRecatchImmunity = 0.35f;
+    private int _LastShieldOwnerId;
+    private double _ReattachBlockedUntilTime;
 
     // Trajectory utility
     private double _startTime = 0f;
@@ -91,7 +90,7 @@ public class LogicBall : NetworkBehaviour
     {
         isAttachedToShield = true;
         _isRun = false;
-        _hasRequestedNextTrajectory = false;
+        _LastShieldOwnerId = pPlayerId;
         _ShieldAnchor = pAnchorTransform;
         _ShieldAttachStartPosition = transform.position;
         _ShieldAttachStartTime = GetTime();
@@ -103,8 +102,7 @@ public class LogicBall : NetworkBehaviour
         Transform lReleasedFromAnchor = _ShieldAnchor;
         isAttachedToShield = false;
         _ShieldAnchor = null;
-        _lastShieldAnchor = lReleasedFromAnchor;
-        _lastShieldReleaseTime = GetTime();
+        _ReattachBlockedUntilTime = GetTime() + 0.2d;
 
         Vector3 lReleaseDirection = pDirection.sqrMagnitude < 0.0001f ? transform.forward : pDirection.normalized;
         MoveSpeed = Mathf.Max(0.01f, MoveSpeed * Mathf.Max(0.01f, pSpeedMultiplier));
@@ -116,18 +114,15 @@ public class LogicBall : NetworkBehaviour
         RequestNewTrajectoryRpc(transform.position, lReleaseDirection);
     }
 
-    public bool CanBeCaughtByShield(Transform pAnchorTransform)
+    public bool CanBeAttachedByShield(int pPlayerId)
     {
         if (isAttachedToShield)
             return false;
 
-        if (pAnchorTransform == null || _lastShieldAnchor == null)
-            return true;
+        if (GetTime() < _ReattachBlockedUntilTime && pPlayerId == _LastShieldOwnerId)
+            return false;
 
-        if (pAnchorTransform != _lastShieldAnchor)
-            return true;
-
-        return (GetTime() - _lastShieldReleaseTime) >= _sameShieldRecatchImmunity;
+        return true;
     }
 
 
