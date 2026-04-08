@@ -41,11 +41,18 @@ public class Shield : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (!isServer)
+            return;
+
         if (_isCatching)
             return;
 
         LogicBall lBall = other.GetComponent<LogicBall>();
         if (lBall == null)
+            return;
+
+        int lPlayerId = _Player != null ? _Player.GetInstanceID() : 0;
+        if (!lBall.CanBeAttachedByShield(lPlayerId))
             return;
 
         StartCoroutine(CatchAndRecoil(lBall));
