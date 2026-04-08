@@ -41,6 +41,9 @@ public class Shield : NetworkBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        if (!isServer)
+            return;
+
         if (_isCatching)
             return;
 
