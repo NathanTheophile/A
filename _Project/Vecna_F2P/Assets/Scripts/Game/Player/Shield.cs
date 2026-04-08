@@ -48,6 +48,9 @@ public class Shield : NetworkBehaviour
         if (lBall == null)
             return;
 
+        if (!lBall.CanBeCaughtByShield(_BallAnchor))
+            return;
+
         StartCoroutine(CatchAndRecoil(lBall));
     }
 
