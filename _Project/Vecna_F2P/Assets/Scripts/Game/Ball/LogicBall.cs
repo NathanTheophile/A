@@ -28,6 +28,8 @@ public class LogicBall : NetworkBehaviour
     private Vector3 _ShieldAttachStartPosition;
     private double _ShieldAttachStartTime;
     private float _ShieldAttachDuration;
+    private int _LastShieldOwnerId;
+    private double _ReattachBlockedUntilTime;
 
     // Trajectory utility
     private double _startTime = 0f;
@@ -88,6 +90,7 @@ public class LogicBall : NetworkBehaviour
     {
         isAttachedToShield = true;
         _isRun = false;
+        _LastShieldOwnerId = pPlayerId;
         _ShieldAnchor = pAnchorTransform;
         _ShieldAttachStartPosition = transform.position;
         _ShieldAttachStartTime = GetTime();
@@ -98,12 +101,24 @@ public class LogicBall : NetworkBehaviour
     {
         isAttachedToShield = false;
         _ShieldAnchor = null;
+        _ReattachBlockedUntilTime = GetTime() + 0.2d;
 
         Vector3 lReleaseDirection = pDirection.sqrMagnitude < 0.0001f ? transform.forward : pDirection.normalized;
         MoveSpeed = Mathf.Max(0.01f, MoveSpeed * Mathf.Max(0.01f, pSpeedMultiplier));
 
         _hasRequestedNextTrajectory = true;
         RequestNewTrajectoryRpc(transform.position, lReleaseDirection);
+    }
+
+    public bool CanBeAttachedByShield(int pPlayerId)
+    {
+        if (isAttachedToShield)
+            return false;
+
+        if (GetTime() < _ReattachBlockedUntilTime && pPlayerId == _LastShieldOwnerId)
+            return false;
+
+        return true;
     }
 
 
